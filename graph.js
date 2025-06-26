@@ -4,35 +4,25 @@ let relationshipsData = null;
 
 let nodes = null;
 let links = null;
+let clustersCalculated = false;
 
-(function() {
+const linkDefaultDistance = 30;
+const chargeDefaultStrength = -80;
+const linkDefaultWidth = 1;
+
+
+document.addEventListener('DOMContentLoaded', function() {
     const mode = localStorage.getItem('colorMode');
     if (mode === 'dark') {
         document.body.classList.add('dark-mode');
-    } else {
-        document.body.classList.remove('dark-mode');
     }
-})();
+    
+    // Initialize cluster coloring mode
+    const clusterMode = localStorage.getItem('clusterColorMode');
+    if (clusterMode === 'enabled') {
+        // Will be applied after graph is generated
+    }
 
-document.getElementById('toggle-mode').onclick = function() {
-    const isDark = document.body.classList.toggle('dark-mode');
-    localStorage.setItem('colorMode', isDark ? 'dark' : 'light');
-};
-
-
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('zoom-fit').onclick = function() {
-        zoomToFit();
-    };
-    document.getElementById('center-graph').onclick = function() {
-        centerGraph();
-    };
-    document.getElementById('reset-graph').onclick = function() {
-        resetGraph();
-    };
-});
-
-document.addEventListener('DOMContentLoaded', function() {
     initializeGraph();
     const entitiesFile = document.getElementById('entities-file');
     const relationshipsFile = document.getElementById('relationships-file');
@@ -41,12 +31,46 @@ document.addEventListener('DOMContentLoaded', function() {
     entitiesFile.addEventListener('change', (event) => handleFileUpload(event, 'entities'));
     relationshipsFile.addEventListener('change', (event) => handleFileUpload(event, 'relationships'));
     generateButton.addEventListener('click', generateGraph);
+
+    document.getElementById('zoom-fit').onclick = zoomToFit;
+    document.getElementById('center-graph').onclick = centerGraph;
+    document.getElementById('reset-graph').onclick = resetGraph;
+    document.getElementById('toggle-mode').onclick = toggleDarkMode;
+    document.getElementById('color-by-cluster').onclick = toggleColorByCluster;
 });
+
+function drawNodeWithLabel(node, ctx, globalScale) {
+    const nodeRadius = Math.sqrt(Math.max(1, (node.attributes ? Object.keys(node.attributes).length : 1) * 2)) * 4;
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI, false);
+    
+    const colors = getCurrentColors();
+    const clusterMode = localStorage.getItem('clusterColorMode') === 'enabled';
+    let nodeColor;
+    if (clusterMode && clustersCalculated) {
+        const clusterId = node.clusterId || 0;
+        nodeColor = colors.clusterColors[clusterId % colors.clusterColors.length];
+    } else {
+        nodeColor = colors.nodeColor;
+    }
+    
+    ctx.fillStyle = nodeColor;
+    ctx.fill();
+
+    const label = node.name;
+    const fontSize = Math.max(8, nodeRadius * 0.3);
+    ctx.font = `${fontSize}px Sans-Serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = colors.textColor;
+    ctx.fillText(label, node.x, node.y + nodeRadius + fontSize * 0.7);
+}
 
 function initializeGraph() {
     const graphContainer = document.getElementById('graph-container');
     console.log('Initializing ForceGraph...', { ForceGraph: typeof ForceGraph, container: graphContainer });
-
+    
+    const colors = getCurrentColors();
     
     try {
         graph = ForceGraph()(graphContainer)
@@ -54,8 +78,10 @@ function initializeGraph() {
             .height(graphContainer.clientHeight)
             .backgroundColor('transparent')
             .nodeVal(node => Math.max(1, (node.attributes ? Object.keys(node.attributes).length : 1) * 2))
-            .linkWidth(link => Math.max(1, (link.weight || 1) * 2))
-            .linkColor('#999')
+            .nodeColor(() => colors.nodeColor)
+            .nodeCanvasObject(drawNodeWithLabel)
+            .linkWidth(linkDefaultWidth)
+            .linkColor(() => colors.linkColor)
             .linkDirectionalArrowLength(6)
             .linkDirectionalArrowRelPos(1)
             .linkCurvature(0.1)
@@ -64,8 +90,8 @@ function initializeGraph() {
             .onBackgroundClick(onBackgroundClick)
             .d3Force('x', d3.forceX(0).strength(0.05))
             .d3Force('y', d3.forceY(0).strength(0.05))
-            .d3Force("link", d3.forceLink().id(d => d.id))
-            .d3Force("charge", d3.forceManyBody().strength(-80));
+            .d3Force("link", d3.forceLink().id(d => d.id).distance(linkDefaultDistance))
+            .d3Force("charge", d3.forceManyBody().strength(chargeDefaultStrength));
             
         
     } catch (error) {
@@ -74,12 +100,10 @@ function initializeGraph() {
         return;
     }
 
-    // Handle window resize
+
     window.addEventListener('resize', () => {
-        if (graph && typeof graph.width === 'function') {
-            graph.width(graphContainer.clientWidth)
-                 .height(graphContainer.clientHeight);
-        }
+        graph.width(graphContainer.clientWidth)
+            .height(graphContainer.clientHeight);
     });
 }
 
@@ -129,13 +153,12 @@ function readFile(file, callback) {
 function processEntities(entitiesData) {
     return entitiesData.map(entity => ({
         id: entity.id,
-        name: entity.name || entity.id,
+        name: entity.name,
         attributes: entity.attributes,
-        entity_type: entity.entity_type || 'Unknown',
+        entity_type: entity.entity_type,
         topic_name: entity.topic_name,
         created_at: entity.created_at,
         updated_at: entity.updated_at,
-        val: Math.max(1, (entity.attributes ? Object.keys(entity.attributes).length : 1) * 2)
     }));
 }
 
@@ -144,7 +167,7 @@ function processRelationships(relationshipsData) {
         id: relationship.id,
         description: relationship.description,
         meta: relationship.meta,
-        weight: relationship.weight || 1,
+        weight: relationship.weight,
         source: relationship.source_entity_id,
         target: relationship.target_entity_id,
         last_modified_at: relationship.last_modified_at,
@@ -162,6 +185,9 @@ function generateGraph() {
     try {
         nodes = processEntities(entitiesData);
         links = processRelationships(relationshipsData);
+        
+        // Reset cluster calculation flag since we have new graph data
+        clustersCalculated = false;
         
         const nodeIds = new Set(nodes.map(node => node.id));
         const validLinks = links.filter(link => {
@@ -187,6 +213,11 @@ function generateGraph() {
         
         setTimeout(() => {
             graph.zoomToFit(400, 50);
+            calculateAndCacheClusters();
+            const clusterMode = localStorage.getItem('clusterColorMode');
+            if (clusterMode === 'enabled') {
+                colorByCluster();
+            }
         }, 1000);
         
     } catch (error) {
@@ -206,7 +237,6 @@ function onNodeClick(node, event) {
         'Updated': node.updated_at
     });
     
-    // Highlight the clicked node and its connections
     highlightConnections(node);
 }
 
@@ -243,42 +273,19 @@ function highlightConnections(node) {
         }
     });
     
-    const computedStyles = getComputedStyle(document.body);
-    const nodeSelected = computedStyles.getPropertyValue('--node-selected').trim();
-    const nodeConnected = computedStyles.getPropertyValue('--node-connected').trim();
-    const nodeDefault = computedStyles.getPropertyValue('--node-default').trim();
-    const linkSelected = computedStyles.getPropertyValue('--link-selected').trim();
-    const linkDefault = computedStyles.getPropertyValue('--link-default').trim();
-    
-    graph
-        .nodeColor(n => {
-            if (n.id === node.id) {
-                return nodeSelected;
-            } else if (connectedNodeIds.has(n.id)) {
-                return nodeConnected;
-            } else {
-                return nodeDefault;
-            }
-        })
-        .linkColor(l => {
-            if (connectedLinkIds.has(l.id)) {
-                return linkSelected;
-            } else {
-                return linkDefault;
-            }
-                 })
-         .linkWidth(l => connectedLinkIds.has(l.id) ? 4 : 1);
-    
+    graph.d3Force("link").distance(link => {
+        if (connectedLinkIds.has(link.id)) {
+            return 120;
+        }
+        return linkDefaultDistance;
+    });
+
+    graph.d3ReheatSimulation();
 }
 
 function clearHighlight() {
-    const linkDefault = getComputedStyle(document.body).getPropertyValue('--link-default').trim();
-    
-    graph
-        .nodeColor(null)
-        .linkColor(linkDefault)
-        .linkWidth(link => Math.max(1, (link.weight || 1) * 2));
-    
+    graph.d3Force("link").distance(linkDefaultDistance);
+    graph.d3Force("charge").strength(chargeDefaultStrength);
 }
 
 function showDetails(title, details) {
@@ -316,3 +323,178 @@ function resetGraph() {
         generateGraph();
     }
 }
+
+function toggleDarkMode() {
+    const isDark = document.body.classList.toggle('dark-mode');
+    localStorage.setItem('colorMode', isDark ? 'dark' : 'light');
+    
+    if (graph) {
+        const colors = getCurrentColors();
+        graph.linkColor(() => colors.linkColor);
+        
+        const clusterMode = localStorage.getItem('clusterColorMode');
+        if (clusterMode === 'enabled') {
+            colorByCluster();
+        } else {
+            graph.nodeColor(() => colors.nodeColor);
+        }
+    }
+}
+
+function getLightModeColors() {
+    document.body.classList.remove('dark-mode');
+    const computedStyles = getComputedStyle(document.body);
+    return {
+        nodeColor: computedStyles.getPropertyValue('--node-default').trim(),
+        nodeHighlighted: computedStyles.getPropertyValue('--node-highlighted').trim(),
+        linkColor: computedStyles.getPropertyValue('--link-default').trim(),
+        clusterColors: [
+            computedStyles.getPropertyValue('--cluster-color-0').trim(),
+            computedStyles.getPropertyValue('--cluster-color-1').trim(),
+            computedStyles.getPropertyValue('--cluster-color-2').trim(),
+            computedStyles.getPropertyValue('--cluster-color-3').trim(),
+            computedStyles.getPropertyValue('--cluster-color-4').trim(),
+            computedStyles.getPropertyValue('--cluster-color-5').trim(),
+            computedStyles.getPropertyValue('--cluster-color-6').trim(),
+            computedStyles.getPropertyValue('--cluster-color-7').trim(),
+            computedStyles.getPropertyValue('--cluster-color-8').trim(),
+            computedStyles.getPropertyValue('--cluster-color-9').trim()
+        ]
+    };
+}
+
+function getDarkModeColors() {
+    document.body.classList.add('dark-mode');
+    const computedStyles = getComputedStyle(document.body);
+    return {
+        nodeColor: computedStyles.getPropertyValue('--node-default').trim(),
+        linkColor: computedStyles.getPropertyValue('--link-default').trim(),
+        clusterColors: [
+            computedStyles.getPropertyValue('--cluster-color-0').trim(),
+            computedStyles.getPropertyValue('--cluster-color-1').trim(),
+            computedStyles.getPropertyValue('--cluster-color-2').trim(),
+            computedStyles.getPropertyValue('--cluster-color-3').trim(),
+            computedStyles.getPropertyValue('--cluster-color-4').trim(),
+            computedStyles.getPropertyValue('--cluster-color-5').trim(),
+            computedStyles.getPropertyValue('--cluster-color-6').trim(),
+            computedStyles.getPropertyValue('--cluster-color-7').trim(),
+            computedStyles.getPropertyValue('--cluster-color-8').trim(),
+            computedStyles.getPropertyValue('--cluster-color-9').trim()
+        ]
+    };
+}
+
+function getCurrentColors() {
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    const computedStyles = getComputedStyle(document.body);
+    return {
+        textColor: computedStyles.getPropertyValue('--text-color').trim(),
+        nodeColor: computedStyles.getPropertyValue('--node-default').trim(),
+        linkColor: computedStyles.getPropertyValue('--link-default').trim(),
+        clusterColors: [
+            computedStyles.getPropertyValue('--cluster-color-0').trim(),
+            computedStyles.getPropertyValue('--cluster-color-1').trim(),
+            computedStyles.getPropertyValue('--cluster-color-2').trim(),
+            computedStyles.getPropertyValue('--cluster-color-3').trim(),
+            computedStyles.getPropertyValue('--cluster-color-4').trim(),
+            computedStyles.getPropertyValue('--cluster-color-5').trim(),
+            computedStyles.getPropertyValue('--cluster-color-6').trim(),
+            computedStyles.getPropertyValue('--cluster-color-7').trim(),
+            computedStyles.getPropertyValue('--cluster-color-8').trim(),
+            computedStyles.getPropertyValue('--cluster-color-9').trim()
+        ]
+    };
+}
+
+function toggleColorByCluster() {
+    if (!graph) {
+        return;
+    }
+    
+    const isClusterMode = localStorage.getItem('clusterColorMode') === 'enabled';
+    const newMode = !isClusterMode;
+    
+    localStorage.setItem('clusterColorMode', newMode ? 'enabled' : 'disabled');
+    
+    if (newMode) {
+        colorByCluster();
+        console.log('Cluster coloring enabled.');
+    } else {
+
+        const colors = getCurrentColors();
+        graph.nodeColor(() => colors.nodeColor);
+        
+        console.log('Cluster coloring disabled. Returned to default node colors');
+    }
+}
+
+function colorByCluster() {
+    const colors = getCurrentColors();
+    
+    graph.nodeColor(node => {
+        const clusterId = node.clusterId || 0;
+        return colors.clusterColors[clusterId % colors.clusterColors.length];
+    });
+    
+}
+
+function calculateAndCacheClusters() {
+    if (!nodes || !links) {
+        return;
+    }
+    
+    const clusters = findClusters();
+    
+    nodes.forEach(node => {
+        node.clusterId = clusters.get(node.id) || 0;
+    });
+    
+    clustersCalculated = true;
+    console.log(`Clusters calculated and cached. Found ${Math.max(...clusters.values()) + 1} clusters`);
+}
+
+function findClusters() {
+    const clusters = new Map();
+    const visited = new Set();
+    let clusterId = 0;
+    
+    const adjacencyList = new Map();
+    nodes.forEach(node => {
+        adjacencyList.set(node.id, []);
+    });
+    
+    links.forEach(link => {
+        const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+        const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+        
+        if (adjacencyList.has(sourceId) && adjacencyList.has(targetId)) {
+            adjacencyList.get(sourceId).push(targetId);
+            adjacencyList.get(targetId).push(sourceId);
+        }
+    });
+    
+    function dfs(nodeId, currentClusterId) {
+        if (visited.has(nodeId)) return;
+        
+        visited.add(nodeId);
+        clusters.set(nodeId, currentClusterId);
+        
+        const neighbors = adjacencyList.get(nodeId) || [];
+        neighbors.forEach(neighborId => {
+            if (!visited.has(neighborId)) {
+                dfs(neighborId, currentClusterId);
+            }
+        });
+    }
+    
+    // Find all connected components
+    nodes.forEach(node => {
+        if (!visited.has(node.id)) {
+            dfs(node.id, clusterId);
+            clusterId++;
+        }
+    });
+    
+    return clusters;
+}
+

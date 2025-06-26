@@ -1,38 +1,50 @@
 :root {
-    --bg: #fff;
-    --text: #222;
-    --panel-bg: #fafafa;
-    --panel-border: #ccc;
-    --link: #999;
-    --button-bg: #f0f0f0;
-    --button-hover-bg: #e0e0e0;
-    --button-text: #222;
+    --base-color: white;
+    --base-variant: #f3f3f3;
+    --button-color: #e1e1e1;
+    --button-hover-color: #525660;
+    --text-color: #31343f;
+    --node-default: #6187e1;
+    --node-highlighted: #23a8e1;
+    --link-default: #575757;
+    --panel-border: #ddd;
     
-    --node-selected: #ff4444;
-    --node-connected: #ff8844;
-    --node-default: #999;
-    --link-selected: #ff4444;
-    --link-default: #999;
+    --cluster-color-0: #FF8A90;
+    --cluster-color-1: #90E4A0;
+    --cluster-color-2: #90C3FF;
+    --cluster-color-3: #F0F070;
+    --cluster-color-4: #C390FF;
+    --cluster-color-5: #FFB380;
+    --cluster-color-6: #A0E490;
+    --cluster-color-7: #FF90D9;
+    --cluster-color-8: #90D9FF;
+    --cluster-color-9: #B390FF;
 }
 body.dark-mode {
-    --bg: #181a1b;
-    --text: #eee;
-    --panel-bg: #23272a;
-    --panel-border: #444;
-    --link: #bbb;
-    --button-bg: #333;
-    --button-hover-bg: #444;
-    --button-text: #eee;
-    
-    --node-selected: #ff6666;
-    --node-connected: #ffaa66;
-    --node-default: #bbb;
-    --link-selected: #ff6666;
-    --link-default: #bbb;
+    --base-color: #050a0c;
+    --base-variant: #041b2c;
+    --button-color: #2a2d34;
+    --button-hover-color: #606267;
+    --text-color: #eee;
+    --node-default: #6187e1;
+    --node-highlighted: #23a8e1;
+    --link-default: #aeaeaf;
+    --panel-border: #555;
+
+    --cluster-color-0: #FFB3BA;
+    --cluster-color-1: #BAFFC9;
+    --cluster-color-2: #BAE1FF;
+    --cluster-color-3: #FFFFBA;
+    --cluster-color-4: #E1BAFF;
+    --cluster-color-5: #FFDFBA;
+    --cluster-color-6: #C9FFBA;
+    --cluster-color-7: #FFBAF3;
+    --cluster-color-8: #BAF3FF;
+    --cluster-color-9: #D4BAFF;
 }
 body {
-    background: var(--bg);
-    color: var(--text);
+    background: var(--base-color);
+    color: var(--text-color);
     transition: background 0.2s, color 0.2s;
     font-family: sans-serif;
     margin: 0;
@@ -47,6 +59,7 @@ h1 {
     transform: translateX(-50%);
     margin: 0;
     z-index: 5;
+    color: var(--text-color);
 }
 .container {
     display: flex;
@@ -56,7 +69,7 @@ h1 {
 .controls {
     flex: 0 0 280px;
     padding: 1em;
-    background: var(--panel-bg);
+    background: var(--base-variant);
     border-right: 1px solid var(--panel-border);
     overflow-y: auto;
 }
@@ -65,6 +78,7 @@ h1 {
     margin-top: 0;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--panel-border);
+    color: var(--text-color);
 }
 .file-upload {
     margin-bottom: 1em;
@@ -93,7 +107,7 @@ h1 {
     width: 300px;
     max-height: calc(100% - 20px);
     overflow-y: auto;
-    background: var(--panel-bg);
+    background: var(--base-variant);
     border: 1px solid var(--panel-border);
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     border-radius: 6px;
@@ -107,26 +121,27 @@ h1 {
     background: transparent;
     border: none;
     font-size: 1.5em;
-    color: var(--text);
+    color: var(--text-color);
     cursor: pointer;
 }
 .node {
     stroke: #fff;
     stroke-width: 1.5px;
+    opacity: 1.0;
 }
 .link {
-    stroke: var(--link);
+    stroke: var(--link-default);
     stroke-opacity: 0.6;
 }
 .node-label {
     font-size: 12px;
     font-family: sans-serif;
-    fill: var(--text);
+    fill: var(--text-color);
 }
 .btn {
     display: inline-block;
-    background-color: var(--button-bg);
-    color: var(--button-text);
+    background-color: var(--button-color);
+    color: var(--text-color);
     border: 1px solid var(--panel-border);
     padding: 10px 15px;
     border-radius: 4px;
@@ -138,7 +153,7 @@ h1 {
     box-sizing: border-box;
 }
 .btn:hover {
-    background-color: var(--button-hover-bg);
+    background-color: var(--button-hover-color);
 }
 button.btn {
     font-family: sans-serif;
@@ -148,7 +163,7 @@ input[type="file"] {
 }
 .file-name {
     font-size: 0.9em;
-    color: var(--text);
+    color: var(--text-color);
     margin-top: -5px;
     margin-bottom: 10px;
     display: block;
@@ -158,4 +173,5 @@ input[type="file"] {
 label {
     display: block;
     margin-bottom: 5px;
+    color: var(--text-color);
 } 
