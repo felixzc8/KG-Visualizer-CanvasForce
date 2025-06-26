@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Graph Visualizer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <h2>Upload Files</h2>
+            <div class="file-upload">
+                <label for="entities-file" class="btn">Entities</label>
+                <input type="file" id="entities-file" accept=".json">
+                <span class="file-name" id="entities-file-name">No file chosen</span>
+            </div>
+            <div class="file-upload">
+                <label for="relationships-file" class="btn">Relationships</label>
+                <input type="file" id="relationships-file" accept=".json,.csv">
+                <span class="file-name" id="relationships-file-name">No file chosen</span>
+            </div>
+            <button id="generate-button" class="btn">Generate Graph</button>
+            <hr>
+            <h3>Graph Controls</h3>
+            <button id="zoom-fit" class="btn">Zoom to Fit</button>
+            <button id="center-graph" class="btn">Center Graph</button>
+            <button id="reset-graph" class="btn">Reset Graph</button>
+            <hr>
+            <button id="toggle-mode" class="btn">Toggle Dark/Light Mode</button>
+        </div>
+        <div class="graph-area">
+            <h1>Knowledge Graph Visualizer</h1>
+            <div id="graph-container"></div>
+            <div id="details" class="details-popup"></div>
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/force-graph@1.43.0/dist/force-graph.min.js"></script>
+    <script src="graph.js"></script>
+</body>
+</html>
