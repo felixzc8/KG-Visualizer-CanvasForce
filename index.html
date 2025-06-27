@@ -34,7 +34,35 @@
         <div class="graph-area">
             <h1>Knowledge Graph Visualizer</h1>
             <div id="graph-container"></div>
-            <div id="details" class="details-popup"></div>
+        </div>
+        <div class="highlight-panel" id="highlight-panel">
+            <div class="highlight-panel-header">
+                <h3>Highlighted Items</h3>
+                <button class="highlight-panel-close" onclick="clearHighlight()">&times;</button>
+            </div>
+            <div class="highlight-panel-content">
+                <div class="details-section" id="details-section" style="display: none;">
+                    <div class="details-section-header">
+                        <h4 id="details-title">Details</h4>
+                        <button class="details-close-btn" onclick="hideDetailsSection()">&times;</button>
+                    </div>
+                    <div id="details-content" class="details-content"></div>
+                </div>
+                <div class="highlight-section">
+                    <div class="highlight-section-header">
+                        <h4>Nodes (<span id="nodes-count">0</span>)</h4>
+                        <button class="save-json-btn" onclick="saveNodesToJson()" title="Save nodes to JSON">📄</button>
+                    </div>
+                    <div id="highlighted-nodes-list" class="highlight-list"></div>
+                </div>
+                <div class="highlight-section">
+                    <div class="highlight-section-header">
+                        <h4>Links (<span id="links-count">0</span>)</h4>
+                        <button class="save-json-btn" onclick="saveLinksToJson()" title="Save links to JSON">📄</button>
+                    </div>
+                    <div id="highlighted-links-list" class="highlight-list"></div>
+                </div>
+            </div>
         </div>
     </div>
 

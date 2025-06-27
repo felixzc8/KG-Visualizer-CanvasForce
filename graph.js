@@ -170,8 +170,8 @@ function processEntities(entitiesData) {
         id: entity.id,
         name: entity.name,
         attributes: entity.attributes,
-        entity_type: entity.entity_type,
-        topic_name: entity.topic_name,
+        entity_type: entity.entity_type || null,
+        topic_name: entity.topic_name || null,
         created_at: entity.created_at,
         updated_at: entity.updated_at,
     }));
@@ -180,14 +180,15 @@ function processEntities(entitiesData) {
 function processRelationships(relationshipsData) {
     return relationshipsData.map(relationship => ({
         id: relationship.id,
-        description: relationship.description,
-        meta: relationship.meta,
-        weight: relationship.weight,
+        description: relationship.relationship_desc,
+        meta: relationship.meta || null,
+        weight: relationship.weight || null,
         source: relationship.source_entity_id,
         target: relationship.target_entity_id,
-        last_modified_at: relationship.last_modified_at,
-        document_id: relationship.document_id,
-        chunk_id: relationship.chunk_id,
+        created_at: relationship.created_at,
+        updated_at: relationship.updated_at,
+        document_id: relationship.document_id || null,
+        chunk_id: relationship.chunk_id || null,
     }));
 }
 
@@ -254,12 +255,13 @@ function onLinkClick(link, event) {
         'ID': link.id,
         'Description': link.description,
         'Weight': link.weight,
-        'Source': link.source,
-        'Target': link.target,
-        'Meta': link.meta ? JSON.stringify(link.meta, null, 2) : 'None',
+        'Source': typeof link.source === 'object' ? link.source.id : link.source,
+        'Target': typeof link.target === 'object' ? link.target.id : link.target,
+        'Meta': link.meta,
         'Document ID': link.document_id,
         'Chunk ID': link.chunk_id,
-        'Last Modified': link.last_modified_at
+        'Created': link.created_at,
+        'Updated': link.updated_at
     });
     highlightLink(link);
 }
@@ -268,13 +270,14 @@ function onBackgroundClick() {
     if (selectionMode) {
         return; // Don't clear highlights in selection mode
     }
-    hideDetails();
+    hideDetailsSection();
     clearHighlight();
 }
 
 function highlightLink(link) {
     highlightedLinks.clear();
     highlightedLinks.add(link.id);
+    updateHighlightPanel();
 }
 
 function highlightConnections(node) {
@@ -315,6 +318,7 @@ function highlightConnections(node) {
     });
 
     graph.d3ReheatSimulation();
+    updateHighlightPanel();
 }
 
 function clearHighlight() {
@@ -322,27 +326,32 @@ function clearHighlight() {
     highlightedLinks.clear();
     graph.d3Force("link").distance(linkDefaultDistance);
     graph.d3Force("charge").strength(chargeDefaultStrength);
+    hideDetailsSection();
+    hideHighlightPanel();
 }
 
 function showDetails(title, details) {
-    const detailsPanel = document.getElementById('details');
+    const detailsSection = document.getElementById('details-section');
+    const detailsTitle = document.getElementById('details-title');
+    const detailsContent = document.getElementById('details-content');
     
-    let html = `
-        <button class="details-close" onclick="hideDetails()">&times;</button>
-        <h3>${title}</h3>
-    `;
+    detailsTitle.textContent = title;
     
+    let html = '';
     for (const [key, value] of Object.entries(details)) {
         html += `<p><strong>${key}:</strong><br/>${value || 'N/A'}</p>`;
     }
     
-    detailsPanel.innerHTML = html;
-    detailsPanel.style.display = 'block';
+    detailsContent.innerHTML = html;
+    detailsSection.style.display = 'block';
+    
+    // Make sure the highlight panel is visible
+    showHighlightPanel();
 }
 
-function hideDetails() {
-    const detailsPanel = document.getElementById('details');
-    detailsPanel.style.display = 'none';
+function hideDetailsSection() {
+    const detailsSection = document.getElementById('details-section');
+    detailsSection.style.display = 'none';
 }
 
 
@@ -440,7 +449,6 @@ function removeSelectionEvents() {
     // Re-enable ForceGraph interactions
     graph.enableNodeDrag(true);
     graph.enablePanInteraction(true);
-
 
     hideSelectionBox();
 }
@@ -555,6 +563,7 @@ function performSelection(start, end) {
     highlightedLinks = connectedLinkIds;
     
     graph.nodeColor(colors.nodeColor); //temporary fix
+    updateHighlightPanel();
 }
 
 function clearSelection() {
@@ -565,6 +574,7 @@ function clearSelection() {
     if (graph) {
         graph.nodeColor(colors.nodeColor); //temporary fix
     }
+    hideHighlightPanel();
 }
 
 function calculateAndCacheClusters() {
@@ -622,5 +632,217 @@ function findClusters() {
     });
     
     return clusters;
+}
+
+// New functions for highlight panel management
+function updateHighlightPanel() {
+    const panel = document.getElementById('highlight-panel');
+    const nodesCountSpan = document.getElementById('nodes-count');
+    const linksCountSpan = document.getElementById('links-count');
+    const nodesListDiv = document.getElementById('highlighted-nodes-list');
+    const linksListDiv = document.getElementById('highlighted-links-list');
+    
+    // Update counts
+    nodesCountSpan.textContent = highlightedNodes.size;
+    linksCountSpan.textContent = highlightedLinks.size;
+    
+    // Clear existing content
+    nodesListDiv.innerHTML = '';
+    linksListDiv.innerHTML = '';
+    
+    if (highlightedNodes.size === 0 && highlightedLinks.size === 0) {
+        hideHighlightPanel();
+        return;
+    }
+    
+    // Populate nodes list
+    highlightedNodes.forEach(nodeId => {
+        const node = nodes.find(n => n.id === nodeId);
+        if (node) {
+            const nodeElement = createHighlightNodeElement(node);
+            nodesListDiv.appendChild(nodeElement);
+        }
+    });
+    
+    // Populate links list
+    highlightedLinks.forEach(linkId => {
+        const link = graph.graphData().links.find(l => l.id === linkId);
+        if (link) {
+            const linkElement = createHighlightLinkElement(link);
+            linksListDiv.appendChild(linkElement);
+        }
+    });
+    
+    showHighlightPanel();
+}
+
+function createHighlightNodeElement(node) {
+    const div = document.createElement('div');
+    div.className = 'highlight-item';
+    div.onclick = () => focusOnNode(node);
+    
+    div.innerHTML = `
+        <div class="highlight-item-name">
+            <span class="highlight-item-type">NODE</span>
+            ${node.name || node.id}
+        </div>
+        <div class="highlight-item-details">
+            ${node.entity_type ? `Type: ${node.entity_type}` : ''}
+            ${node.topic_name ? ` | Topic: ${node.topic_name}` : ''}
+        </div>
+    `;
+    
+    return div;
+}
+
+function createHighlightLinkElement(link) {
+    const div = document.createElement('div');
+    div.className = 'highlight-item';
+    div.onclick = () => focusOnLink(link);
+    
+    const sourceNode = nodes.find(n => n.id === (typeof link.source === 'object' ? link.source.id : link.source));
+    const targetNode = nodes.find(n => n.id === (typeof link.target === 'object' ? link.target.id : link.target));
+    
+    div.innerHTML = `
+        <div class="highlight-item-name">
+            <span class="highlight-item-type" style="background: var(--link-highlighted);">LINK</span>
+            ${link.description || `Link ${link.id}`}
+        </div>
+        <div class="highlight-item-details">
+            ${sourceNode ? sourceNode.name : 'Unknown'} → ${targetNode ? targetNode.name : 'Unknown'}
+            ${link.weight ? ` | Weight: ${link.weight}` : ''}
+        </div>
+    `;
+    
+    return div;
+}
+
+function focusOnNode(node) {
+    if (graph) {
+        graph.centerAt(node.x, node.y, 1000);
+        graph.zoom(2, 1000);
+        
+        // Show node details
+        showDetails('Node Details', {
+            'ID': node.id,
+            'Name': node.name,
+            'Type': node.entity_type,
+            'Topic': node.topic_name,
+            'Attributes': node.attributes ? JSON.stringify(node.attributes, null, 2) : 'None',
+            'Created': node.created_at,
+            'Updated': node.updated_at
+        });
+    }
+}
+
+function focusOnLink(link) {
+    if (graph) {
+        const sourceNode = typeof link.source === 'object' ? link.source : nodes.find(n => n.id === link.source);
+        const targetNode = typeof link.target === 'object' ? link.target : nodes.find(n => n.id === link.target);
+        
+        if (sourceNode && targetNode) {
+            // Focus on the midpoint between source and target
+            const midX = (sourceNode.x + targetNode.x) / 2;
+            const midY = (sourceNode.y + targetNode.y) / 2;
+            graph.centerAt(midX, midY, 1000);
+            graph.zoom(2, 1000);
+        }
+        
+        // Show link details
+        showDetails('Relationship Details', {
+            'ID': link.id,
+            'Description': link.description,
+            'Weight': link.weight,
+            'Source': typeof link.source === 'object' ? link.source.id : link.source,
+            'Target': typeof link.target === 'object' ? link.target.id : link.target,
+            'Meta': link.meta ? JSON.stringify(link.meta, null, 2) : 'None',
+            'Document ID': link.document_id,
+            'Chunk ID': link.chunk_id,
+            'Created': link.created_at,
+            'Updated': link.updated_at
+        });
+    }
+}
+
+function showHighlightPanel() {
+    const panel = document.getElementById('highlight-panel');
+    panel.classList.add('visible');
+}
+
+function hideHighlightPanel() {
+    const panel = document.getElementById('highlight-panel');
+    panel.classList.remove('visible');
+}
+
+// JSON export functions
+function saveNodesToJson() {
+    if (highlightedNodes.size === 0) {
+        alert('No nodes are currently highlighted');
+        return;
+    }
+    
+    const highlightedNodesData = [];
+    highlightedNodes.forEach(nodeId => {
+        const node = nodes.find(n => n.id === nodeId);
+        if (node) {
+            const cleanNode = {
+                id: node.id,
+                name: node.name,
+                attributes: node.attributes,
+                entity_type: node.entity_type,
+                topic_name: node.topic_name,
+                created_at: node.created_at,
+                updated_at: node.updated_at,
+            }
+            highlightedNodesData.push(cleanNode);
+        }
+    });
+    
+    downloadJson(highlightedNodesData, 'highlighted_nodes.json');
+}
+
+function saveLinksToJson() {
+    if (highlightedLinks.size === 0) {
+        alert('No links are currently highlighted');
+        return;
+    }
+    
+    const highlightedLinksData = [];
+    highlightedLinks.forEach(linkId => {
+        const link = graph.graphData().links.find(l => l.id === linkId);
+        if (link) {
+            const cleanLink = {
+                id: link.id,
+                description: link.description,
+                meta: link.meta,
+                weight: link.weight,
+                source: typeof link.source === 'object' ? link.source.id : link.source,
+                target: typeof link.target === 'object' ? link.target.id : link.target,
+                created_at: link.created_at,
+                updated_at: link.updated_at,
+                document_id: link.document_id,
+                chunk_id: link.chunk_id
+            };
+            highlightedLinksData.push(cleanLink);
+        }
+    });
+    
+    downloadJson(highlightedLinksData, 'highlighted_links.json');
+}
+
+function downloadJson(data, filename) {
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
 
