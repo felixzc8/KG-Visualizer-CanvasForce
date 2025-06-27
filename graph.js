@@ -28,13 +28,13 @@ let selectionStart = null;
 let selectionBox = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    lightDarkMode = localStorage.getItem('colorMode');
+    lightDarkMode = localStorage.getItem('colorMode') || 'dark';
     if (lightDarkMode === 'dark') {
         document.body.classList.add('dark-mode');
     }
 
     colors = getCurrentColors();
-    clusterMode = localStorage.getItem('clusterColorMode');
+    clusterMode = localStorage.getItem('clusterColorMode') || 'enabled';
 
     initializeGraph();
     const entitiesFile = document.getElementById('entities-file');
