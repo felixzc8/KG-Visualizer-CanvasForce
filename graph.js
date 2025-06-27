@@ -8,16 +8,23 @@ let clustersCalculated = false;
 
 const linkDefaultDistance = 30;
 const chargeDefaultStrength = -80;
+const linkHighlightDistance = 120;
+const chargeHighlightStrength = -200;
 const linkDefaultWidth = 1;
 
 let colors = null;
-let mode = null;
+let lightDarkMode = null;
 let clusterMode = null;
+
+let highlightedNode = null;
+let highlightedLink = null;
+let highlightedNodes = new Set();
+let highlightedLinks = new Set();
 
 
 document.addEventListener('DOMContentLoaded', function() {
-    mode = localStorage.getItem('colorMode');
-    if (mode === 'dark') {
+    lightDarkMode = localStorage.getItem('colorMode');
+    if (lightDarkMode === 'dark') {
         document.body.classList.add('dark-mode');
     }
 
@@ -57,6 +64,13 @@ function drawNodeWithLabel(node, ctx, globalScale) {
     ctx.fillStyle = nodeColor;
     ctx.fill();
 
+    // Add outline for highlighted nodes
+    if (highlightedNodes.has(node.id)) {
+        ctx.strokeStyle = colors.nodeHighlighted;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    }
+
     const label = node.name;
     const fontSize = Math.max(8, nodeRadius * 0.3);
     ctx.font = `${fontSize}px Sans-Serif`;
@@ -70,8 +84,6 @@ function initializeGraph() {
     const graphContainer = document.getElementById('graph-container');
     console.log('Initializing ForceGraph...', { ForceGraph: typeof ForceGraph, container: graphContainer });
     
-    colors = getCurrentColors();
-    
     try {
         graph = ForceGraph()(graphContainer)
             .width(graphContainer.clientWidth)
@@ -80,7 +92,7 @@ function initializeGraph() {
             .nodeColor(() => colors.nodeColor)
             .nodeCanvasObject(drawNodeWithLabel)
             .linkWidth(linkDefaultWidth)
-            .linkColor(() => colors.linkColor)
+            .linkColor(link => highlightedLinks.has(link.id) ? colors.linkHighlighted : colors.linkColor)
             .linkDirectionalArrowLength(6)
             .linkDirectionalArrowRelPos(1)
             .linkCurvature(0.1)
@@ -98,7 +110,6 @@ function initializeGraph() {
         alert('Failed to initialize graph. Error: ' + error.message);
         return;
     }
-
 
     window.addEventListener('resize', () => {
         graph.width(graphContainer.clientWidth)
@@ -246,11 +257,17 @@ function onLinkClick(link, event) {
         'Chunk ID': link.chunk_id,
         'Last Modified': link.last_modified_at
     });
+    highlightLink(link);
 }
 
 function onBackgroundClick() {
     hideDetails();
     clearHighlight();
+}
+
+function highlightLink(link) {
+    highlightedLinks.clear();
+    highlightedLinks.add(link.id);
 }
 
 function highlightConnections(node) {
@@ -267,16 +284,35 @@ function highlightConnections(node) {
         }
     });
     
+    // Update highlighted nodes set to include selected node and connected nodes
+    highlightedNodes.clear();
+    highlightedNodes.add(node.id);
+    connectedNodeIds.forEach(nodeId => highlightedNodes.add(nodeId));
+    
+    // Update highlighted links set to include connected links
+    highlightedLinks.clear();
+    connectedLinkIds.forEach(linkId => highlightedLinks.add(linkId));
+    
     graph.d3Force("link").distance(link => {
         if (connectedLinkIds.has(link.id)) {
-            return 120;
+            return linkHighlightDistance;
         }
         return linkDefaultDistance;
     });
+
+    graph.d3Force("charge").strength(node => {
+        if (connectedNodeIds.has(node.id)) {
+            return chargeHighlightStrength;
+        }
+        return chargeDefaultStrength;
+    });
+
     graph.d3ReheatSimulation();
 }
 
 function clearHighlight() {
+    highlightedNodes.clear();
+    highlightedLinks.clear();
     graph.d3Force("link").distance(linkDefaultDistance);
     graph.d3Force("charge").strength(chargeDefaultStrength);
 }
@@ -318,18 +354,21 @@ function resetGraph() {
 }
 
 function toggleDarkMode() {
-    const isDark = document.body.classList.toggle('dark-mode');
-    localStorage.setItem('colorMode', isDark ? 'dark' : 'light');
+    newMode = lightDarkMode === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('colorMode', newMode);
+    lightDarkMode = newMode;
+    document.body.classList.toggle('dark-mode');
     colors = getCurrentColors();
 }
 
 function getCurrentColors() {
-    const isDarkMode = document.body.classList.contains('dark-mode');
     const computedStyles = getComputedStyle(document.body);
     return {
         textColor: computedStyles.getPropertyValue('--text-color').trim(),
         nodeColor: computedStyles.getPropertyValue('--node-default').trim(),
+        nodeHighlighted: computedStyles.getPropertyValue('--node-highlighted').trim(),
         linkColor: computedStyles.getPropertyValue('--link-default').trim(),
+        linkHighlighted: computedStyles.getPropertyValue('--link-highlighted').trim(),
         clusterColors: [
             computedStyles.getPropertyValue('--cluster-color-0').trim(),
             computedStyles.getPropertyValue('--cluster-color-1').trim(),
@@ -352,19 +391,12 @@ function toggleColorByCluster() {
     newMode = clusterMode === 'enabled' ? 'disabled' : 'enabled';
     localStorage.setItem('clusterColorMode', newMode);
     clusterMode = newMode;
-    
-    if (newMode) {
-        console.log('Cluster coloring enabled.');
-    } else {
-        console.log('Cluster coloring disabled. Returned to default node colors');
-    }
 }
 
 function calculateAndCacheClusters() {
     if (!nodes || !links) {
         return;
     }
-    
     const clusters = findClusters();
     
     nodes.forEach(node => {
@@ -408,8 +440,6 @@ function findClusters() {
             }
         });
     }
-    
-    // Find all connected components
     nodes.forEach(node => {
         if (!visited.has(node.id)) {
             dfs(node.id, clusterId);

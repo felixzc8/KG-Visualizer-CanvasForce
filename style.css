@@ -6,6 +6,7 @@
     --text-color: #31343f;
     --node-default: #6187e1;
     --node-highlighted: #23a8e1;
+    --link-highlighted: #23a8e1;
     --link-default: #575757;
     --panel-border: #ddd;
     
@@ -28,19 +29,20 @@ body.dark-mode {
     --text-color: #eee;
     --node-default: #6187e1;
     --node-highlighted: #23a8e1;
+    --link-highlighted: #23a8e1;
     --link-default: #aeaeaf;
     --panel-border: #555;
 
-    --cluster-color-0: #FFB3BA;
-    --cluster-color-1: #BAFFC9;
-    --cluster-color-2: #BAE1FF;
-    --cluster-color-3: #FFFFBA;
-    --cluster-color-4: #E1BAFF;
-    --cluster-color-5: #FFDFBA;
-    --cluster-color-6: #C9FFBA;
-    --cluster-color-7: #FFBAF3;
-    --cluster-color-8: #BAF3FF;
-    --cluster-color-9: #D4BAFF;
+    --cluster-color-0: #FF8A90;
+    --cluster-color-1: #90E4A0;
+    --cluster-color-2: #90C3FF;
+    --cluster-color-3: #F0F070;
+    --cluster-color-4: #C390FF;
+    --cluster-color-5: #FFB380;
+    --cluster-color-6: #A0E490;
+    --cluster-color-7: #FF90D9;
+    --cluster-color-8: #90D9FF;
+    --cluster-color-9: #B390FF;
 }
 body {
     background: var(--base-color);
