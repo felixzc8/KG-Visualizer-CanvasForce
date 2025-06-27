@@ -10,18 +10,19 @@ const linkDefaultDistance = 30;
 const chargeDefaultStrength = -80;
 const linkDefaultWidth = 1;
 
+let colors = null;
+let mode = null;
+let clusterMode = null;
+
 
 document.addEventListener('DOMContentLoaded', function() {
-    const mode = localStorage.getItem('colorMode');
+    mode = localStorage.getItem('colorMode');
     if (mode === 'dark') {
         document.body.classList.add('dark-mode');
     }
-    
-    // Initialize cluster coloring mode
-    const clusterMode = localStorage.getItem('clusterColorMode');
-    if (clusterMode === 'enabled') {
-        // Will be applied after graph is generated
-    }
+
+    colors = getCurrentColors();
+    clusterMode = localStorage.getItem('clusterColorMode');
 
     initializeGraph();
     const entitiesFile = document.getElementById('entities-file');
@@ -40,14 +41,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function drawNodeWithLabel(node, ctx, globalScale) {
-    const nodeRadius = Math.sqrt(Math.max(1, (node.attributes ? Object.keys(node.attributes).length : 1) * 2)) * 4;
+    const nodeRadius = 8;
     ctx.beginPath();
     ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI, false);
     
-    const colors = getCurrentColors();
-    const clusterMode = localStorage.getItem('clusterColorMode') === 'enabled';
+    const clusterModeOn = clusterMode === 'enabled';
     let nodeColor;
-    if (clusterMode && clustersCalculated) {
+    if (clusterModeOn && clustersCalculated) {
         const clusterId = node.clusterId || 0;
         nodeColor = colors.clusterColors[clusterId % colors.clusterColors.length];
     } else {
@@ -70,14 +70,13 @@ function initializeGraph() {
     const graphContainer = document.getElementById('graph-container');
     console.log('Initializing ForceGraph...', { ForceGraph: typeof ForceGraph, container: graphContainer });
     
-    const colors = getCurrentColors();
+    colors = getCurrentColors();
     
     try {
         graph = ForceGraph()(graphContainer)
             .width(graphContainer.clientWidth)
             .height(graphContainer.clientHeight)
             .backgroundColor('transparent')
-            .nodeVal(node => Math.max(1, (node.attributes ? Object.keys(node.attributes).length : 1) * 2))
             .nodeColor(() => colors.nodeColor)
             .nodeCanvasObject(drawNodeWithLabel)
             .linkWidth(linkDefaultWidth)
@@ -186,7 +185,6 @@ function generateGraph() {
         nodes = processEntities(entitiesData);
         links = processRelationships(relationshipsData);
         
-        // Reset cluster calculation flag since we have new graph data
         clustersCalculated = false;
         
         const nodeIds = new Set(nodes.map(node => node.id));
@@ -214,10 +212,6 @@ function generateGraph() {
         setTimeout(() => {
             graph.zoomToFit(400, 50);
             calculateAndCacheClusters();
-            const clusterMode = localStorage.getItem('clusterColorMode');
-            if (clusterMode === 'enabled') {
-                colorByCluster();
-            }
         }, 1000);
         
     } catch (error) {
@@ -279,7 +273,6 @@ function highlightConnections(node) {
         }
         return linkDefaultDistance;
     });
-
     graph.d3ReheatSimulation();
 }
 
@@ -327,61 +320,7 @@ function resetGraph() {
 function toggleDarkMode() {
     const isDark = document.body.classList.toggle('dark-mode');
     localStorage.setItem('colorMode', isDark ? 'dark' : 'light');
-    
-    if (graph) {
-        const colors = getCurrentColors();
-        graph.linkColor(() => colors.linkColor);
-        
-        const clusterMode = localStorage.getItem('clusterColorMode');
-        if (clusterMode === 'enabled') {
-            colorByCluster();
-        } else {
-            graph.nodeColor(() => colors.nodeColor);
-        }
-    }
-}
-
-function getLightModeColors() {
-    document.body.classList.remove('dark-mode');
-    const computedStyles = getComputedStyle(document.body);
-    return {
-        nodeColor: computedStyles.getPropertyValue('--node-default').trim(),
-        nodeHighlighted: computedStyles.getPropertyValue('--node-highlighted').trim(),
-        linkColor: computedStyles.getPropertyValue('--link-default').trim(),
-        clusterColors: [
-            computedStyles.getPropertyValue('--cluster-color-0').trim(),
-            computedStyles.getPropertyValue('--cluster-color-1').trim(),
-            computedStyles.getPropertyValue('--cluster-color-2').trim(),
-            computedStyles.getPropertyValue('--cluster-color-3').trim(),
-            computedStyles.getPropertyValue('--cluster-color-4').trim(),
-            computedStyles.getPropertyValue('--cluster-color-5').trim(),
-            computedStyles.getPropertyValue('--cluster-color-6').trim(),
-            computedStyles.getPropertyValue('--cluster-color-7').trim(),
-            computedStyles.getPropertyValue('--cluster-color-8').trim(),
-            computedStyles.getPropertyValue('--cluster-color-9').trim()
-        ]
-    };
-}
-
-function getDarkModeColors() {
-    document.body.classList.add('dark-mode');
-    const computedStyles = getComputedStyle(document.body);
-    return {
-        nodeColor: computedStyles.getPropertyValue('--node-default').trim(),
-        linkColor: computedStyles.getPropertyValue('--link-default').trim(),
-        clusterColors: [
-            computedStyles.getPropertyValue('--cluster-color-0').trim(),
-            computedStyles.getPropertyValue('--cluster-color-1').trim(),
-            computedStyles.getPropertyValue('--cluster-color-2').trim(),
-            computedStyles.getPropertyValue('--cluster-color-3').trim(),
-            computedStyles.getPropertyValue('--cluster-color-4').trim(),
-            computedStyles.getPropertyValue('--cluster-color-5').trim(),
-            computedStyles.getPropertyValue('--cluster-color-6').trim(),
-            computedStyles.getPropertyValue('--cluster-color-7').trim(),
-            computedStyles.getPropertyValue('--cluster-color-8').trim(),
-            computedStyles.getPropertyValue('--cluster-color-9').trim()
-        ]
-    };
+    colors = getCurrentColors();
 }
 
 function getCurrentColors() {
@@ -410,32 +349,15 @@ function toggleColorByCluster() {
     if (!graph) {
         return;
     }
-    
-    const isClusterMode = localStorage.getItem('clusterColorMode') === 'enabled';
-    const newMode = !isClusterMode;
-    
-    localStorage.setItem('clusterColorMode', newMode ? 'enabled' : 'disabled');
+    newMode = clusterMode === 'enabled' ? 'disabled' : 'enabled';
+    localStorage.setItem('clusterColorMode', newMode);
+    clusterMode = newMode;
     
     if (newMode) {
-        colorByCluster();
         console.log('Cluster coloring enabled.');
     } else {
-
-        const colors = getCurrentColors();
-        graph.nodeColor(() => colors.nodeColor);
-        
         console.log('Cluster coloring disabled. Returned to default node colors');
     }
-}
-
-function colorByCluster() {
-    const colors = getCurrentColors();
-    
-    graph.nodeColor(node => {
-        const clusterId = node.clusterId || 0;
-        return colors.clusterColors[clusterId % colors.clusterColors.length];
-    });
-    
 }
 
 function calculateAndCacheClusters() {
