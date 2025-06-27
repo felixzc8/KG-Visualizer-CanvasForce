@@ -4,7 +4,6 @@ let relationshipsData = null;
 
 let nodes = null;
 let links = null;
-let clustersCalculated = false;
 
 const linkDefaultDistance = 30;
 const chargeDefaultStrength = -80;
@@ -54,7 +53,7 @@ function drawNodeWithLabel(node, ctx, globalScale) {
     
     const clusterModeOn = clusterMode === 'enabled';
     let nodeColor;
-    if (clusterModeOn && clustersCalculated) {
+    if (clusterModeOn) {
         const clusterId = node.clusterId || 0;
         nodeColor = colors.clusterColors[clusterId % colors.clusterColors.length];
     } else {
@@ -193,10 +192,9 @@ function generateGraph() {
     }
 
     try {
+        
         nodes = processEntities(entitiesData);
         links = processRelationships(relationshipsData);
-        
-        clustersCalculated = false;
         
         const nodeIds = new Set(nodes.map(node => node.id));
         const validLinks = links.filter(link => {
@@ -218,11 +216,11 @@ function generateGraph() {
         console.log('Generated graph data:', graphData);
         console.log(`Nodes: ${nodes.length}, Valid Links: ${validLinks.length}, Invalid Links: ${links.length - validLinks.length}`);
         
+        calculateAndCacheClusters();
         graph.graphData(graphData);
         
         setTimeout(() => {
             graph.zoomToFit(400, 50);
-            calculateAndCacheClusters();
         }, 1000);
         
     } catch (error) {
@@ -370,16 +368,16 @@ function getCurrentColors() {
         linkColor: computedStyles.getPropertyValue('--link-default').trim(),
         linkHighlighted: computedStyles.getPropertyValue('--link-highlighted').trim(),
         clusterColors: [
-            computedStyles.getPropertyValue('--cluster-color-0').trim(),
-            computedStyles.getPropertyValue('--cluster-color-1').trim(),
-            computedStyles.getPropertyValue('--cluster-color-2').trim(),
-            computedStyles.getPropertyValue('--cluster-color-3').trim(),
-            computedStyles.getPropertyValue('--cluster-color-4').trim(),
-            computedStyles.getPropertyValue('--cluster-color-5').trim(),
-            computedStyles.getPropertyValue('--cluster-color-6').trim(),
-            computedStyles.getPropertyValue('--cluster-color-7').trim(),
-            computedStyles.getPropertyValue('--cluster-color-8').trim(),
-            computedStyles.getPropertyValue('--cluster-color-9').trim()
+            computedStyles.getPropertyValue('--cluster-color-0'),
+            computedStyles.getPropertyValue('--cluster-color-1'),
+            computedStyles.getPropertyValue('--cluster-color-2'),
+            computedStyles.getPropertyValue('--cluster-color-3'),
+            computedStyles.getPropertyValue('--cluster-color-4'),
+            computedStyles.getPropertyValue('--cluster-color-5'),
+            computedStyles.getPropertyValue('--cluster-color-6'),
+            computedStyles.getPropertyValue('--cluster-color-7'),
+            computedStyles.getPropertyValue('--cluster-color-8'),
+            computedStyles.getPropertyValue('--cluster-color-9')
         ]
     };
 }
