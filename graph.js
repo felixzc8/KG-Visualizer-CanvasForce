@@ -17,10 +17,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.classList.add('dark-mode');
     }
     
-    // Initialize cluster coloring mode
+    // Initialize cluster coloring mode - default to enabled
     const clusterMode = localStorage.getItem('clusterColorMode');
-    if (clusterMode === 'enabled') {
-        // Will be applied after graph is generated
+    if (clusterMode === null) {
+        // Set default to enabled if not set before
+        localStorage.setItem('clusterColorMode', 'enabled');
     }
 
     initializeGraph();
@@ -200,6 +201,9 @@ function generateGraph() {
             
             return sourceExists && targetExists;
         });
+
+        // Elegant fix: Calculate clusters *before* the first render to avoid color flash.
+        calculateAndCacheClusters();
         
         const graphData = {
             nodes: nodes,
@@ -211,13 +215,10 @@ function generateGraph() {
         
         graph.graphData(graphData);
         
+        // The timeout is now only used for post-render actions like zooming.
+        // Node coloring is handled from the start by `drawNodeWithLabel`.
         setTimeout(() => {
             graph.zoomToFit(400, 50);
-            calculateAndCacheClusters();
-            const clusterMode = localStorage.getItem('clusterColorMode');
-            if (clusterMode === 'enabled') {
-                colorByCluster();
-            }
         }, 1000);
         
     } catch (error) {
