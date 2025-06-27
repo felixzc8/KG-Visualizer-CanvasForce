@@ -14,12 +14,18 @@ const linkDefaultWidth = 1;
 let colors = null;
 let lightDarkMode = null;
 let clusterMode = null;
+let clustersCalculated = false;
 
 let highlightedNode = null;
 let highlightedLink = null;
 let highlightedNodes = new Set();
 let highlightedLinks = new Set();
 
+// Selection mode variables
+let selectionMode = false;
+let isSelecting = false;
+let selectionStart = null;
+let selectionBox = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     lightDarkMode = localStorage.getItem('colorMode');
@@ -44,6 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('reset-graph').onclick = resetGraph;
     document.getElementById('toggle-mode').onclick = toggleDarkMode;
     document.getElementById('color-by-cluster').onclick = toggleColorByCluster;
+    document.getElementById('subgraph-selector').onclick = toggleSelectionMode;
 });
 
 function drawNodeWithLabel(node, ctx, globalScale) {
@@ -88,7 +95,6 @@ function initializeGraph() {
             .width(graphContainer.clientWidth)
             .height(graphContainer.clientHeight)
             .backgroundColor('transparent')
-            .nodeColor(() => colors.nodeColor)
             .nodeCanvasObject(drawNodeWithLabel)
             .linkWidth(linkDefaultWidth)
             .linkColor(link => highlightedLinks.has(link.id) ? colors.linkHighlighted : colors.linkColor)
@@ -259,6 +265,9 @@ function onLinkClick(link, event) {
 }
 
 function onBackgroundClick() {
+    if (selectionMode) {
+        return; // Don't clear highlights in selection mode
+    }
     hideDetails();
     clearHighlight();
 }
@@ -357,6 +366,7 @@ function toggleDarkMode() {
     lightDarkMode = newMode;
     document.body.classList.toggle('dark-mode');
     colors = getCurrentColors();
+    graph.nodeColor(colors.nodeColor); //temporary fix
 }
 
 function getCurrentColors() {
@@ -383,12 +393,178 @@ function getCurrentColors() {
 }
 
 function toggleColorByCluster() {
-    if (!graph) {
+    if (!graph || !clustersCalculated) {
         return;
     }
     newMode = clusterMode === 'enabled' ? 'disabled' : 'enabled';
     localStorage.setItem('clusterColorMode', newMode);
     clusterMode = newMode;
+    graph.nodeColor(colors.nodeColor); //temporary fix
+}
+
+function toggleSelectionMode() {
+    selectionMode = !selectionMode;
+    const button = document.getElementById('subgraph-selector');
+    
+    if (selectionMode) {
+        button.textContent = 'Exit Selection Mode';
+        button.style.backgroundColor = '#ff6b6b';
+        setupSelectionEvents();
+    } else {
+        button.textContent = 'Subgraph Selector';
+        button.style.backgroundColor = '';
+        clearSelection();
+        removeSelectionEvents();
+    }
+}
+
+function setupSelectionEvents() {
+    // Disable ForceGraph interactions
+    graph.enableNodeDrag(false);
+    graph.enablePanInteraction(false);
+    
+    const container = document.getElementById('graph-container');
+    container.addEventListener('mousedown', onSelectionMouseDown, true);
+    container.addEventListener('mousemove', onSelectionMouseMove, true);
+    container.addEventListener('mouseup', onSelectionMouseUp, true);
+    container.style.cursor = 'crosshair';
+}
+
+function removeSelectionEvents() {
+    const container = document.getElementById('graph-container');
+    container.removeEventListener('mousedown', onSelectionMouseDown, true);
+    container.removeEventListener('mousemove', onSelectionMouseMove, true);
+    container.removeEventListener('mouseup', onSelectionMouseUp, true);
+    container.style.cursor = 'default';
+
+    // Re-enable ForceGraph interactions
+    graph.enableNodeDrag(true);
+    graph.enablePanInteraction(true);
+
+
+    hideSelectionBox();
+}
+
+function onSelectionMouseDown(event) {
+    if (!selectionMode) return;
+    
+    event.preventDefault();
+    isSelecting = true;
+    const rect = event.currentTarget.getBoundingClientRect();
+    selectionStart = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+    };
+    showSelectionBox();
+}
+
+function onSelectionMouseMove(event) {
+    if (!selectionMode || !isSelecting) return;
+    
+    const rect = event.currentTarget.getBoundingClientRect();
+    const currentPos = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+    };
+    updateSelectionBox(selectionStart, currentPos);
+}
+
+function onSelectionMouseUp(event) {
+    if (!selectionMode || !isSelecting) return;
+    
+    const rect = event.currentTarget.getBoundingClientRect();
+    const endPos = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+    };
+    
+    performSelection(selectionStart, endPos);
+    isSelecting = false;
+    hideSelectionBox();
+}
+
+function showSelectionBox() {
+    if (!selectionBox) {
+        selectionBox = document.createElement('div');
+        selectionBox.style.position = 'absolute';
+        selectionBox.style.border = '2px dashed #007bff';
+        selectionBox.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+        selectionBox.style.pointerEvents = 'none';
+        selectionBox.style.zIndex = '1000';
+        document.getElementById('graph-container').appendChild(selectionBox);
+    }
+    selectionBox.style.display = 'block';
+}
+
+function updateSelectionBox(start, current) {
+    if (!selectionBox) return;
+    
+    const left = Math.min(start.x, current.x);
+    const top = Math.min(start.y, current.y);
+    const width = Math.abs(current.x - start.x);
+    const height = Math.abs(current.y - start.y);
+    
+    selectionBox.style.left = left + 'px';
+    selectionBox.style.top = top + 'px';
+    selectionBox.style.width = width + 'px';
+    selectionBox.style.height = height + 'px';
+}
+
+function hideSelectionBox() {
+    if (selectionBox) {
+        selectionBox.style.display = 'none';
+    }
+}
+
+function performSelection(start, end) {
+    if (!graph || !nodes) return;
+    
+    // Convert screen coordinates to graph coordinates
+    const startGraph = graph.screen2GraphCoords(start.x, start.y);
+    const endGraph = graph.screen2GraphCoords(end.x, end.y);
+    
+    const bounds = {
+        left: Math.min(startGraph.x, endGraph.x),
+        right: Math.max(startGraph.x, endGraph.x),
+        top: Math.min(startGraph.y, endGraph.y),
+        bottom: Math.max(startGraph.y, endGraph.y)
+    };
+    
+    // Find nodes within selection rectangle
+    const selectedNodeIds = new Set();
+    nodes.forEach(node => {
+        if (node.x >= bounds.left && node.x <= bounds.right &&
+            node.y >= bounds.top && node.y <= bounds.bottom) {
+            selectedNodeIds.add(node.id);
+        }
+    });
+    
+    // Find connected nodes and links
+    const connectedLinkIds = new Set();
+
+    graph.graphData().links.forEach(link => {
+        if (selectedNodeIds.has(link.source.id) || selectedNodeIds.has(link.target.id)) {
+            connectedLinkIds.add(link.id);
+        }
+    });
+    
+    // Update highlighted items for visual feedback
+    highlightedNodes.clear();
+    highlightedLinks.clear();
+    highlightedNodes = selectedNodeIds;
+    highlightedLinks = connectedLinkIds;
+    
+    graph.nodeColor(colors.nodeColor); //temporary fix
+}
+
+function clearSelection() {
+    highlightedNodes.clear();
+    highlightedLinks.clear();
+    
+    // Force immediate visual update
+    if (graph) {
+        graph.nodeColor(colors.nodeColor); //temporary fix
+    }
 }
 
 function calculateAndCacheClusters() {
