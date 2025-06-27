@@ -7,6 +7,8 @@
     --node-default: #6187e1;
     --node-highlighted: #23a8e1;
     --link-highlighted: #23a8e1;
+    --node-selected: #23E1BB;
+    --link-selected: #23E1BB;
     --link-default: #575757;
     --panel-border: #ddd;
     
@@ -30,6 +32,8 @@ body.dark-mode {
     --node-default: #6187e1;
     --node-highlighted: #23a8e1;
     --link-highlighted: #23a8e1;
+    --node-selected: #23E1BB;
+    --link-selected: #23E1BB;
     --link-default: #aeaeaf;
     --panel-border: #555;
 

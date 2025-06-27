@@ -16,8 +16,8 @@ let lightDarkMode = null;
 let clusterMode = null;
 let clustersCalculated = false;
 
-let highlightedNode = null;
-let highlightedLink = null;
+let selectedNode = null;
+let selectedLink = null;
 let highlightedNodes = new Set();
 let highlightedLinks = new Set();
 
@@ -70,8 +70,12 @@ function drawNodeWithLabel(node, ctx, globalScale) {
     ctx.fillStyle = nodeColor;
     ctx.fill();
 
-    // Add outline for highlighted nodes
-    if (highlightedNodes.has(node.id)) {
+    // Add outline for selected or highlighted nodes
+    if (selectedNode && selectedNode.id === node.id) {
+        ctx.strokeStyle = colors.nodeSelected;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    } else if (highlightedNodes.has(node.id)) {
         ctx.strokeStyle = colors.nodeHighlighted;
         ctx.lineWidth = 3;
         ctx.stroke();
@@ -97,7 +101,15 @@ function initializeGraph() {
             .backgroundColor('transparent')
             .nodeCanvasObject(drawNodeWithLabel)
             .linkWidth(linkDefaultWidth)
-            .linkColor(link => highlightedLinks.has(link.id) ? colors.linkHighlighted : colors.linkColor)
+            .linkColor(link => {
+                if (selectedLink && selectedLink.id === link.id) {
+                    return colors.linkSelected;
+                } else if (highlightedLinks.has(link.id)) {
+                    return colors.linkHighlighted;
+                } else {
+                    return colors.linkColor;
+                }
+            })
             .linkDirectionalArrowLength(6)
             .linkDirectionalArrowRelPos(1)
             .linkCurvature(0.1)
@@ -237,6 +249,9 @@ function generateGraph() {
 }
 
 function onNodeClick(node, event) {
+    selectedNode = node;
+    selectedLink = null; // Clear selected link when selecting a node
+    
     showDetails('Node Details', {
         'ID': node.id,
         'Name': node.name,
@@ -251,6 +266,9 @@ function onNodeClick(node, event) {
 }
 
 function onLinkClick(link, event) {
+    selectedLink = link;
+    selectedNode = null; // Clear selected node when selecting a link
+    
     showDetails('Relationship Details', {
         'ID': link.id,
         'Description': link.description,
@@ -294,9 +312,8 @@ function highlightConnections(node) {
         }
     });
     
-    // Update highlighted nodes set to include selected node and connected nodes
+    // Update highlighted nodes set to include only connected nodes (not the selected node)
     highlightedNodes.clear();
-    highlightedNodes.add(node.id);
     connectedNodeIds.forEach(nodeId => highlightedNodes.add(nodeId));
     
     // Update highlighted links set to include connected links
@@ -322,6 +339,8 @@ function highlightConnections(node) {
 }
 
 function clearHighlight() {
+    selectedNode = null;
+    selectedLink = null;
     highlightedNodes.clear();
     highlightedLinks.clear();
     graph.d3Force("link").distance(linkDefaultDistance);
@@ -384,8 +403,10 @@ function getCurrentColors() {
         textColor: computedStyles.getPropertyValue('--text-color').trim(),
         nodeColor: computedStyles.getPropertyValue('--node-default').trim(),
         nodeHighlighted: computedStyles.getPropertyValue('--node-highlighted').trim(),
+        nodeSelected: computedStyles.getPropertyValue('--node-selected').trim(),
         linkColor: computedStyles.getPropertyValue('--link-default').trim(),
         linkHighlighted: computedStyles.getPropertyValue('--link-highlighted').trim(),
+        linkSelected: computedStyles.getPropertyValue('--link-selected').trim(),
         clusterColors: [
             computedStyles.getPropertyValue('--cluster-color-0'),
             computedStyles.getPropertyValue('--cluster-color-1'),
@@ -567,6 +588,8 @@ function performSelection(start, end) {
 }
 
 function clearSelection() {
+    selectedNode = null;
+    selectedLink = null;
     highlightedNodes.clear();
     highlightedLinks.clear();
     
