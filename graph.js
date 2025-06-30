@@ -347,6 +347,7 @@ function clearHighlight() {
     graph.d3Force("charge").strength(chargeDefaultStrength);
     hideDetailsSection();
     hideHighlightPanel();
+    graph.d3ReheatSimulation();
 }
 
 function showDetails(title, details) {
